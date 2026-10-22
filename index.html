@@ -42,6 +42,7 @@
 }
 *{box-sizing:border-box}
 [hidden]{display:none!important}
+.view{min-height:100vh;min-height:100svh}
 html{color-scheme:light;-webkit-text-size-adjust:100%}
 body{margin:0}
 img{max-width:100%}
@@ -1231,12 +1232,16 @@ const DFILE={ru:'data.json',uz:'data_uz.json',en:'data_en.json'};
 const dataP={};
 function loadData(l){l=l||LANG;return dataP[l]||(dataP[l]=fetch(DFILE[l]).then(r=>{if(!r.ok)throw new Error(r.status);return r.json()}).then(d=>{const idx={};for(const [c,v] of Object.entries(d.cats))v.list.forEach(p=>{if(p)idx[p.id]=[c,p]});d.idx=idx;return d}).catch(e=>{delete dataP[l];throw e}))}
 function showOnly(el){[home,catView,solView].forEach(v=>v.hidden=v!==el)}
+try{history.scrollRestoration='manual'}catch(_){}
+/* instant jump to top: stops iOS momentum and ignores smooth scroll-behavior */
+function toTop(){const r=document.documentElement,sb=r.style.scrollBehavior;r.style.scrollBehavior='auto';r.style.overflow='hidden';window.scrollTo(0,0);r.scrollTop=0;document.body.scrollTop=0;requestAnimationFrame(()=>{r.style.overflow='';window.scrollTo(0,0);r.scrollTop=0;r.style.scrollBehavior=sb})}
+let navId=0;
 let curCat=null, curGroup='all';
 
 async function openCat(slug,keepScroll){
   const meta=catT(slug);if(!meta)return showHome('catalog');
-  const L0=LANG;
-  showOnly(catView);if(!keepScroll)window.scrollTo(0,0);
+  const L0=LANG, my=++navId;
+  showOnly(catView);if(!keepScroll)toTop();
   $('#cvTitle').textContent=meta.name;$('#cvCrumb').textContent=meta.name;$('#cvDesc').textContent=meta.desc;
   document.title=meta.name+' — '+U().title;
   if(curCat!==slug){curGroup='all';$('#cvGrid').innerHTML='';$('#cvChips').innerHTML='';$('#cvMeta').innerHTML=''}
@@ -1255,6 +1260,7 @@ async function openCat(slug,keepScroll){
     $('#cvGrid').innerHTML=list.filter(p=>curGroup==='all'||p.g===curGroup).map(p=>'<a class="s-card" href="#p-'+p.id+'"><div class="ph"><img src="ph/x_'+p.id+'.webp" alt="" loading="lazy"></div><div class="tx"><span class="gname">'+esc(gname[p.g]||'')+'</span><h3>'+esc(p.t)+'</h3>'+(p.models.length?'<span class="mods">'+U().nmodels(p.models.length)+'</span>':'')+'</div></a>').join('');
   }
   renderGrid();
+  if(!keepScroll&&navId===my)toTop();
 }
 
 function detHTML(t){
@@ -1296,9 +1302,8 @@ addEventListener('keydown',e=>{if(e.key==='Escape'&&!sheet.hidden)location.hash=
 
 async function openSol(key){
   const s=SOLMAP[key];if(!s)return showHome('solutions');
-  const L0=LANG;
-  if(solView.hidden)window.scrollTo(0,0);
-  showOnly(solView);
+  const L0=LANG, wasHidden=solView.hidden, my=++navId;
+  showOnly(solView);if(wasHidden)toTop();
   document.title=solName(s)+' — '+U().title;
   $('#svCrumb').textContent=solName(s);$('#svTitle').textContent=solName(s);$('#svGroup').textContent=G()[s[3]];
   $('#svImg').src='ph/s_'+s[1]+'.webp';$('#svImg').alt=solName(s);
@@ -1306,13 +1311,14 @@ async function openSol(key){
   $('#svCases').innerHTML=caseHTML(s,casesOf(s));
   const d=await loadData(L0);if(LANG!==L0)return;const info=d.sol[s[0]];if(!info)return;
   if(info.desc)$('#svDesc').innerHTML=info.desc.split('\n').filter(Boolean).map(p=>'<p>'+esc(p)+'</p>').join('');
+  if(wasHidden&&navId===my)requestAnimationFrame(toTop);
   $('#svEq').innerHTML=info.eq.filter(a=>CATMAP[a]).map(a=>{const m=catT(a);return '<li><a href="#cat-'+a+'"><img src="ph/p_'+m.img+'.webp" alt="" loading="lazy">'+esc(m.name)+'<span class="ar"><svg class="ic"><use href="#arr-r"/></svg></span></a></li>'}).join('');
 }
 
 function showHome(anchor){
   closeSheet();const was=home.hidden;showOnly(home);document.title=U().title;
   const el=anchor&&document.getElementById(anchor);
-  if(el)el.scrollIntoView({behavior:(was||reduce)?'auto':'smooth',block:'start'});else if(was)window.scrollTo(0,0);
+  if(el){if(was){const r=document.documentElement,sb=r.style.scrollBehavior;r.style.scrollBehavior='auto';el.scrollIntoView({block:'start'});r.style.scrollBehavior=sb}else el.scrollIntoView({behavior:reduce?'auto':'smooth',block:'start'})}else if(was)toTop();
 }
 function route(){
   const h=decodeURIComponent(location.hash.slice(1));
